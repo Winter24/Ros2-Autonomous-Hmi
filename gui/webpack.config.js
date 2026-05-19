@@ -24,7 +24,10 @@ const webpack = require('webpack');
 
 const BABEL_CONFIG = {
   presets: ['@babel/preset-env', '@babel/preset-react'],
-  plugins: ['@babel/proposal-class-properties']
+  plugins: [
+    '@babel/plugin-proposal-class-properties',
+    '@babel/plugin-syntax-dynamic-import'
+  ]
 };
 
 const CONFIG = {
