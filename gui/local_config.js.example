@@ -1,4 +1,0 @@
-// Example local config — copy to `gui/local_config.js` and add your real token there.
-// This file is committed as a template. DO NOT commit `gui/local_config.js`.
-
-export const MAPBOX_TOKEN = 'YOUR_MAPBOX_TOKEN_HERE';
