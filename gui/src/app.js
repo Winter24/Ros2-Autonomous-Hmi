@@ -41,13 +41,16 @@ import {
   XVIZWorkersMonitor,
   XVIZWorkersStatus
 } from 'streetscape.gl';
+
+import MiniMapWindow from './mini-map-window';
 import { ThemeProvider, Form, Button } from '@streetscape.gl/monochrome';
 import { XVIZ_CONFIG, APP_SETTINGS, CONFIG_SETTINGS, XVIZ_STYLE, CAR, STYLES } from './constants';
-import ControPanel from './control-Panel';
+import ControlPanel from './control-Panel';
 import { UI_THEME } from './custom_styles'
 import MapView from './mapview';
 import HUD from './hud';
 import './stylesheets/main.scss';
+import CameraWindow from './camera-window';
 import ROSLIB from 'roslib'
 setXVIZConfig(XVIZ_CONFIG);
 
@@ -204,44 +207,68 @@ class Example extends PureComponent {
     window.location.replace(newPage);
   }
   render() {
-    const { log, settings, mapStyle, mapToken, panels } = this.state;
-    //console.log(log);
-    return (
-      <div id="container">
-        <div id="control-panel">
-          {
-            <ControPanel
-              log={log}
-              state={this.state}
-              settings={this.state.settings}
-              onSettingsChange={this._onStreamSettingChange}
-              onChange={this._onSettingsChange}
-              onClick={this._onButtonClick}
-            />
-          }
-          {this._renderPerf() /*FPS moudle*/ }    
-        </div>
-        <div id="log-panel">
-          <div id="map-view">
-            {<MapView
-              log={log}
-              settings={settings}
-              onSettingsChange={this._onSettingsChange}
-              mapToken={mapToken}
-              mapStyle={mapStyle}
-              debug={payload => this.setState({ statsSnapshot: payload })}
-            />
-            }
-            <div id="hud">
-              {<HUD
-                log={log}
-              />}
-            </div>
-          </div>
+  const { log, settings, mapStyle, mapToken } = this.state;
+
+  return (
+    <div
+      id="container"
+      style={{
+        position: "fixed",
+        left: 0,
+        top: 0,
+        width: "100vw",
+        height: "100vh",
+        overflow: "hidden"
+      }}
+    >
+      <div
+        id="log-panel"
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: "100%",
+          height: "100%"
+        }}
+      >
+        <div
+          id="map-view"
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: "100%",
+            height: "100%"
+          }}
+        >
+          <MapView
+            log={log}
+            settings={settings}
+            onSettingsChange={this._onSettingsChange}
+            mapToken={mapToken}
+            mapStyle={null}
+            debug={payload => this.setState({ statsSnapshot: payload })}
+          />
+
+          <HUD log={log} />
         </div>
       </div>
-    );
-  }
+
+      <ControlPanel
+        log={log}
+        state={this.state}
+        settings={this.state.settings}
+        onSettingsChange={this._onSettingsChange}
+        onStreamSettingChange={this._onStreamSettingChange}
+        onChange={this._onConfigChange}
+        onClick={this._onButtonClick}
+      />
+
+      <MiniMapWindow />
+      <CameraWindow />
+    </div>
+  );
+}
 }
 render(
   <ThemeProvider theme={UI_THEME}>

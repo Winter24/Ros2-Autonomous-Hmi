@@ -252,7 +252,7 @@ function connectionId() {
 }
 
 // add a new location message 
-function addLocationToCache(lat, lng, alt, roll, ptich, yaw,speed,steering, accel, time) {
+function addLocationToCache(lat, lng, alt, roll, ptich, yaw, speed, steering, accel, time, yaw_offset = 0.0) {
     _locationCache = {
         latitude: lat,
         longitude: lng,
@@ -264,6 +264,7 @@ function addLocationToCache(lat, lng, alt, roll, ptich, yaw,speed,steering, acce
         degree_of_steering: steering,
         x_dir_accelation :accel,
         timestamp: time,
+        yaw_offset: yaw_offset,
     };
 }
 //Gwang - make addLidarDataToCache
@@ -294,21 +295,38 @@ function add_CompressedImageCache(image_data, format){
     };
 }
 
-function tryServeFrame(){
-    // frame is ready, serve it to all live connections
-    let xvizBuilder = new XVIZBuilder({metadata: _metadata});
+function tryServeFrame() {
+    let xvizBuilder = new XVIZBuilder({ metadata: _metadata });
+
     if (_locationCache) {
-        /**DGIST OSM map does not specify height
-         * We set the height of the car at zero.
-         * Use _locationCache.altitude' when using a map with height
-          */
-        let no_altitude = 0;
-        xvizBuilder.pose(POSE_STREAM)
-        .timestamp(_locationCache.timestamp)
-            .mapOrigin(_locationCache.longitude, _locationCache.latitude, 0)
-            .position(0,0,0)
-            //.orientation(0,0,_locationCache.yaw+ 3.141592);
-            .orientation(_locationCache.roll, _locationCache.pitch, _locationCache.yaw);
+        const correctedYaw =
+            (_locationCache.yaw || 0.0) +
+            (_locationCache.yaw_offset || 0.0);
+
+        console.log(
+            "yaw:",
+            _locationCache.yaw,
+            "offset:",
+            _locationCache.yaw_offset,
+            "corrected:",
+            correctedYaw
+        );
+
+        xvizBuilder
+            .pose(POSE_STREAM)
+            .timestamp(_locationCache.timestamp)
+            .mapOrigin(
+                _locationCache.longitude,
+                _locationCache.latitude,
+                0
+            )
+            .position(0, 0, 0)
+            .orientation(
+                _locationCache.roll || 0.0,
+                _locationCache.ptich || 0.0,
+                correctedYaw
+            );
+
         xvizBuilder.timeSeries(VELOCITY_STREAM)
             .timestamp(_locationCache.timestamp)
             .value(_locationCache.x_dir_velocity);
@@ -325,61 +343,51 @@ function tryServeFrame(){
             .timestamp(_locationCache.timestamp)
             .value(new Date().getTime());
 
-
         if (_trajectoryCache) {
-            xvizBuilder.primitive(LOCALPATH_STREAM).polyline(_trajectoryCache);
-        } else {
-            //xvizBuilder.primitive('/vehicle/trajectory').polyline([[2*Math.cos(_locationCache.heading), 2*Math.sin(_locationCache.heading), 0], [10*Math.cos(_locationCache.heading), 10*Math.sin(_locationCache.heading), 0]]);
+            xvizBuilder.primitive(LOCALPATH_STREAM)
+                .polyline(_trajectoryCache);
         }
+
         if (_ObstaclesCache) {
-            for (i=0;i<_ObstaclesCache.length;i++){
-                ObjConveter.ObjectType_Builder(_ObstaclesCache[i],xvizBuilder,i)
+            for (let i = 0; i < _ObstaclesCache.length; i++) {
+                ObjConveter.ObjectType_Builder(
+                    _ObstaclesCache[i],
+                    xvizBuilder,
+                    i
+                );
             }
         }
-        
+
         if (_cameraImageCache) {
-            xvizBuilder.primitive(CAMERAIMAGE_STREAM).
-                //image(nodeBufferToTypedArray(_cameraImageCache.image_data), 'png')
-                //.dimensions(_cameraImageCache.width, _cameraImageCache.height)
-                //.position([1, 1, 1]);
-                image(nodeBufferToTypedArray(_cameraImageCache.image_data), _cameraImageCache.format)
+            xvizBuilder.primitive(CAMERAIMAGE_STREAM)
+                .image(
+                    nodeBufferToTypedArray(_cameraImageCache.image_data),
+                    _cameraImageCache.format
+                );
         }
-        //Gwang - add lidar XvizBuilder
-            if (_lidarCache) {
-                xvizBuilder
-                    .primitive(POINTCLOUD_STREAM)
-                    .points(_lidarCache.points)
-                    //.colors(_lidarCache.colors)
-                    //.ids(_lidarCache.ids)
-                    .style({ fill_color: '#00ff00aa' });
-                //.colors(_lidarCache.colors)
-        }/*
-        //console.log(xvizBuilder.getMessage());
-        const xvizFrame = encodeBinaryXVIZ(xvizBuilder.getFrame(), {});
-        //console.log("frame time",_frameTimer)
-        //const xvizFrame = JSON.stringify(xvizBuilder.getFrame());
-        //console.log(xvizFrame);
+
+        if (_lidarCache) {
+            xvizBuilder
+                .primitive(POINTCLOUD_STREAM)
+                .points(_lidarCache.points)
+                .style({ fill_color: '#00ff00aa' });
+        }
+
+        const xvizFrame = encodeBinaryXVIZ(
+            xvizBuilder.getFrame(),
+            {}
+        );
+
         count = count + 1;
-        _connectionMap.forEach((context, connectionId, map) => {
+
+        _connectionMap.forEach((context) => {
             context.sendFrame(xvizFrame);
-            //_locationCache = null;
-            _lidarCache = null;
-        });*/
-            //console.log(xvizBuilder.getMessage());
-        const xvizFrame = encodeBinaryXVIZ(xvizBuilder.getFrame(), {});
-        //console.log("frame time",_frameTimer)
-        //const xvizFrame = JSON.stringify(xvizBuilder.getFrame());
-        //console.log(xvizFrame);
-        count = count + 1;
-        //console.log(count);
-        _connectionMap.forEach((context, connectionId, map) => {
-            context.sendFrame(xvizFrame);
-            //_locationCache = null;
-            //_lidarCache = null;
         });
     }
+
     return;
 }
+
 //using camrea xviz builder (base64 -> uint8Array(camera input type))
 function nodeBufferToTypedArray(buffer){
     const typedArray = new Uint8Array(buffer);
@@ -477,8 +485,8 @@ module.exports = {
         _wss.close();
     },
     //jaekeun - vehile update location data from index.js
-    updateLocation: function(lat, lng, alt, roll, pitch, yaw, speed, steering, accel, time) {
-        addLocationToCache(lat, lng, alt, roll, pitch, yaw,  speed, steering, accel, time);
+    updateLocation: function(lat, lng, alt, roll, pitch, yaw, speed, steering, accel, time, yaw_offset = 0.0) {
+        addLocationToCache(lat, lng, alt, roll, pitch, yaw, speed, steering, accel, time, yaw_offset);
         tryServeFrame();
     },
     //Gwnag - Lidar approach
