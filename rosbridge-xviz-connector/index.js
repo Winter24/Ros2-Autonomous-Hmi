@@ -182,6 +182,18 @@ const predListener = new ROSLIB.Topic({
   throttle_rate: 100
 });
 
+const enableDetectionPub = new ROSLIB.Topic({
+  ros: rosBridgeClient,
+  name: '/enable_detection',
+  messageType: 'std_msgs/msg/Bool'
+});
+
+const topicUpdatePub = new ROSLIB.Topic({
+  ros: rosBridgeClient,
+  name: '/pointcloud_topic_update',
+  messageType: 'std_msgs/msg/String'
+});
+
 xvizServer.startListenOn(8081);
 
 process.on("SIGTERM", gracefulShutdown);
@@ -232,6 +244,9 @@ const topicApiServer = http.createServer((req, res) => {
 
         subscribePointCloudTopic(data.topic);
 
+        // Notify detect.py of the topic change
+        topicUpdatePub.publish(new ROSLIB.Message({ data: data.topic }));
+
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
           ok: true,
@@ -249,11 +264,7 @@ const topicApiServer = http.createServer((req, res) => {
     return;
   }
 
-const enableDetectionPub = new ROSLIB.Topic({
-  ros: rosBridgeClient,
-  name: '/enable_detection',
-  messageType: 'std_msgs/msg/Bool'
-});
+
 
   if (req.method === "POST" && req.url === "/toggle_predictions") {
     let body = "";
@@ -394,28 +405,20 @@ odomListener.subscribe(function (message) {
 function mapClassId(classIdStr) {
   const classId = parseInt(classIdStr);
   switch (classId) {
-    case 0: return 6; // Pedestrian -> PEDESTRIAN
-    case 1: return 4; // Bicycle -> BICYCLE
-    case 2: return 5; // Motorcycle -> MOTORBIKE
-    case 3: return 5; // Scooter -> MOTORBIKE
+    case 0: return 1; // Car
+    case 1: return 6; // Pedestrian
+    case 2: return 4; // Cyclist
     default: return 0; // UNKNOWN
   }
 }
 
 let enablePredictions = true;
 let lastPredTime = 0;
+let globalDetectionId = 1000;
 
 setInterval(() => {
   if (enablePredictions && Date.now() - lastPredTime > 1000) {
-    xvizServer.updateObstacles([{
-      id: 9999,
-      object_class: 0,
-      object_build: '0',
-      vertices: { x: 0, y: 0, z: -10000 },
-      scale: { x: 0.01, y: 0.01, z: 0.01 },
-      orientation: { car_roll: 0, car_pitch: 0, car_yaw: 0, roll: 0, pitch: 0, yaw: 0, yaw_: 0 },
-      velocity: { dir_arrow: [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }], abs_velocity: 0 }
-    }]);
+    xvizServer.updateObstacles([]);
   }
 }, 500);
 
@@ -448,7 +451,7 @@ function handlePredsMessage(message) {
     const object_build = xviz_class === 6 ? '1' : '0'; // '1' Cylinder for pedestrian, '0' CubeBox for others
 
     return {
-      id: idx + 1,
+      id: idx,
       object_class: xviz_class,
       object_build: object_build,
       vertices: {

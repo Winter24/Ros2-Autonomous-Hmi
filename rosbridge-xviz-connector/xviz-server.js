@@ -95,6 +95,11 @@ xvizMetaBuider.stream(VECHILE_STREAM)
         fill_color: '#EEA2AD80',
         stroke_color: '#EEA2AD'  //purple
     })
+    .pose({
+        x: 1.2,
+        y: -0.3,
+        z: 1.8
+    });
 
 xvizMetaBuider.stream(PEDESTRIAN_STREAM)
     .category('primitive')
@@ -112,9 +117,9 @@ xvizMetaBuider.stream(PEDESTRIAN_STREAM)
         stroke_color: '#D6A000'
     })
     .pose({
-        x: 0,
-        y: 0,
-        z: 0
+        x: 1.2,
+        y: -0.3,
+        z: 1.8
     });    /*
     .styleClass(category.streamName,OBJECT_PALATTE[category.streamName]) 
     /*.pose(this.FIXTURE_TRANSFORM_POSE*/
