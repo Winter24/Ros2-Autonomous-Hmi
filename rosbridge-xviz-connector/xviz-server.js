@@ -284,7 +284,8 @@ function add_cameraImageCache(image_data, width, height){
     _cameraImageCache = {
         image_data: image_data,
         width: width,
-        height: height  
+        height: height,
+        format: 'png'
     };
 }
 //jaekeun compressedImage_data (buffer), format: 'png'
@@ -349,6 +350,17 @@ function tryServeFrame() {
         }
 
         if (_ObstaclesCache) {
+            // Invisible flush primitives to prevent stream freezing ghost boxes
+            xvizBuilder.primitive('/objects/shape/vehicle')
+                .polygon([[0, 0, -10000], [0.01, 0, -10000], [0.01, 0.01, -10000]])
+                .id('flush-vehicle');
+            xvizBuilder.primitive('/objects/shape/pedestrian')
+                .polygon([[0, 0, -10000], [0.01, 0, -10000], [0.01, 0.01, -10000]])
+                .id('flush-pedestrian');
+            xvizBuilder.primitive('/objects/direction/arrow')
+                .polyline([[0, 0, -10000], [0.01, 0, -10000]])
+                .id('flush-arrow');
+
             for (let i = 0; i < _ObstaclesCache.length; i++) {
                 ObjConveter.ObjectType_Builder(
                     _ObstaclesCache[i],
@@ -359,6 +371,7 @@ function tryServeFrame() {
         }
 
         if (_cameraImageCache) {
+            console.log(`[XVIZ] packing camera image size: ${_cameraImageCache.image_data.length}, format: ${_cameraImageCache.format}`);
             xvizBuilder.primitive(CAMERAIMAGE_STREAM)
                 .image(
                     nodeBufferToTypedArray(_cameraImageCache.image_data),
@@ -454,6 +467,9 @@ class ConnectionContext {
         }
     }
     sendFrame(frame) {
+        if (this.ws.readyState !== WebSocket.OPEN) {
+            return;
+        }
         if (frame instanceof Buffer) {
             this.ws.send(frame);
         } else {

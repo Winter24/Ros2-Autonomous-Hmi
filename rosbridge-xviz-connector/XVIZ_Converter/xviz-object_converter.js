@@ -117,15 +117,15 @@ function build_Cylinder(marker, xvizBuilder) {
 }
 //
 function build_Arrow(marker, xvizBuilder) {
-    const Points = _makeArrow(marker,xvizBuilder);
-    xvizBuilder
-        .primitive(ARROW_STREAM)
-        .polyline(Points)
-        .style(
-            {
-                stroke_color: '#FF0000', //red
-                stroke_width: 0.1
-            })
+    // const Points = _makeArrow(marker,xvizBuilder);
+    // xvizBuilder
+    //     .primitive(ARROW_STREAM)
+    //     .polyline(Points)
+    //     .style(
+    //         {
+    //             stroke_color: '#FF0000', //red
+    //             stroke_width: 0.1
+    //         })
 }
 
 function build_LineList(marker, xvizBuilder) {
@@ -181,7 +181,7 @@ function TranformVertices(marker) {
     var {x,y,z} = marker.vertices
     var tran_points = [[marker.vertices.x, marker.vertices.y, marker.vertices.z]]
     transform_coord = object_transform_helper.getRelativeCoordinates(tran_points, basepose);
-    label_position = [transform_coord[0].x, transform_coord[0].y, object_height]
+    label_position = [transform_coord[0][0], transform_coord[0][1], object_height]
     
     //this transformation is based on this metrix
     vertices = [[x + object_width, y - object_depth, 0],
@@ -206,10 +206,10 @@ function TranformVertices(marker) {
                           [transform_coord[0].x + trans3[0].x, transform_coord[0].y + trans3[0].y, 0],
                           [transform_coord[0].x + trans4[0].x, transform_coord[0].y + trans4[0].y, 0]]
     */
-    transform_vertices = [[transform_coord[0].x + Trans1[0].x, transform_coord[0].y + Trans1[0].y, transform_coord.z],
-                          [transform_coord[0].x + Trans2[0].x, transform_coord[0].y + Trans2[0].y, transform_coord.z],
-                          [transform_coord[0].x + Trans3[0].x, transform_coord[0].y + Trans3[0].y, transform_coord.z],
-                          [transform_coord[0].x + Trans4[0].x, transform_coord[0].y + Trans4[0].y, transform_coord.z]]
+    transform_vertices = [[transform_coord[0][0] + Trans1[0][0], transform_coord[0][1] + Trans1[0][1], transform_coord[0][2]],
+                          [transform_coord[0][0] + Trans2[0][0], transform_coord[0][1] + Trans2[0][1], transform_coord[0][2]],
+                          [transform_coord[0][0] + Trans3[0][0], transform_coord[0][1] + Trans3[0][1], transform_coord[0][2]],
+                          [transform_coord[0][0] + Trans4[0][0], transform_coord[0][1] + Trans4[0][1], transform_coord[0][2]]]
 
     return { label_position, transform_vertices }   //vertices}
 }
@@ -219,14 +219,14 @@ function CylinderVertices(marker) {
     var n = 20.0
     var tran_points = [[marker.vertices.x, marker.vertices.y, marker.vertices.z]]
     transform_coord = object_transform_helper.getRelativeCoordinates(tran_points, basepose);
-    label_position = [transform_coord[0].x, transform_coord[0].y, 0]
+    label_position = [transform_coord[0][0], transform_coord[0][1], 0]
     
     for (var i =0.0; i<n; ++i){
         //radius_x = object_radis* Math.cos(Calculator.Degreetoradian(i/n));
         //radius_y = object_radis* Math.sin(Calculator.Degreetoradian(i/n));
         radius_x = object_radis* Math.cos((i/n)*2.0 * Math.PI + Math.PI/n)
         radius_y = object_radis* Math.sin((i/n)*2.0 * Math.PI + Math.PI/n)
-        cycle_points =[transform_coord[0].x+radius_x, transform_coord[0].y+radius_y, 0];
+        cycle_points =[transform_coord[0][0]+radius_x, transform_coord[0][1]+radius_y, 0];
         cycle_vertices.push(cycle_points)
     }
     //console.log("cycle_vertices",cycle_vertices)
@@ -261,26 +261,26 @@ function TransformVec(arrow_obj, xvizBuilder) {
     transform_coord = object_transform_helper.getRelativeCoordinates([origin_points], basepose);
 
     var transform_endofVec = object_transform_helper.getRelativeCoordinates([origin_endofVec], basepose);
-    var transform_endofVec = object_transform_helper.getRelativeCoordinates(transform_endofVec, transform_arrow);
-    const tf_endofVec = new math.Vector3([transform_coord[0].x + transform_endofVec[0].x, 
-                                          transform_coord[0].y + transform_endofVec[0].y,
-                                          transform_coord[0].z])
+    transform_endofVec = object_transform_helper.getRelativeCoordinates(transform_endofVec, transform_arrow);
+    const tf_endofVec = new math.Vector3([transform_coord[0][0] + transform_endofVec[0][0], 
+                                          transform_coord[0][1] + transform_endofVec[0][1],
+                                          transform_coord[0][2]])
     /* //not use
     var transform_pcross = object_transform_helper.getRelativeCoordinates([origin_pcross], basepose);
     transform_pcross = object_transform_helper.getRelativeCoordinates(transform_pcross, transform_arrow);
-    const tf_pcross = new math.Vector3([transform_coord[0].x + transform_pcross[0].x, transform_coord[0].y + transform_pcross[0].y, transform_coord[0].z])
+    const tf_pcross = new math.Vector3([transform_coord[0][0] + transform_pcross[0][0], transform_coord[0][1] + transform_pcross[0][1], transform_coord[0][2]])
     */
     var transform_leftPtr = object_transform_helper.getRelativeCoordinates([origin_leftPtr], basepose);
     transform_leftPtr = object_transform_helper.getRelativeCoordinates(transform_leftPtr, transform_arrow);
-    const tf_leftPtr = new math.Vector3([transform_coord[0].x + transform_leftPtr[0].x, 
-                                         transform_coord[0].y + transform_leftPtr[0].y,
-                                         transform_coord[0].z])
+    const tf_leftPtr = new math.Vector3([transform_coord[0][0] + transform_leftPtr[0][0], 
+                                         transform_coord[0][1] + transform_leftPtr[0][1],
+                                         transform_coord[0][2]])
 
     var transform_rightPtr = object_transform_helper.getRelativeCoordinates([origin_rightPtr], basepose);
     transform_rightPtr = object_transform_helper.getRelativeCoordinates(transform_rightPtr, transform_arrow);
-    const tf_rightPtr = new math.Vector3([transform_coord[0].x + transform_rightPtr[0].x, 
-                                          transform_coord[0].y + transform_rightPtr[0].y, 
-                                          transform_coord[0].z])
+    const tf_rightPtr = new math.Vector3([transform_coord[0][0] + transform_rightPtr[0][0], 
+                                          transform_coord[0][1] + transform_rightPtr[0][1], 
+                                          transform_coord[0][2]])
 
     return [transform_coord[0], tf_endofVec, tf_leftPtr,tf_endofVec,tf_rightPtr]
 }

@@ -135,7 +135,8 @@ function subscribePointCloudTopic(topicName) {
   pointCloudListener = new ROSLIB.Topic({
     ros: rosBridgeClient,
     name: pointCloudTopicName,
-    messageType: "sensor_msgs/msg/PointCloud2"
+    messageType: "sensor_msgs/msg/PointCloud2",
+    throttle_rate: 150
   });
 
   pointCloudListener.subscribe(handlePointCloudMessage);
@@ -163,14 +164,22 @@ const odomListener = new ROSLIB.Topic({
 
 const listener7 = new ROSLIB.Topic({
   ros: rosBridgeClient,
-  name: "/kitti/image/color/left",
-  messageType: "sensor_msgs/msg/Image"
+  name: "/camera/camera/image_raw",
+  messageType: "sensor_msgs/msg/Image",
+  throttle_rate: 100
 });
 
 const listener8 = new ROSLIB.Topic({
   ros: rosBridgeClient,
   name: "/kitti/marker_array",
   messageType: "visualization_msgs/msg/MarkerArray"
+});
+
+const predListener = new ROSLIB.Topic({
+  ros: rosBridgeClient,
+  name: "/preds",
+  messageType: "vision_msgs/msg/Detection3DArray",
+  throttle_rate: 100
 });
 
 xvizServer.startListenOn(8081);
@@ -181,6 +190,8 @@ process.on("SIGINT", gracefulShutdown);
 rosBridgeClient.on("connection", function () {
   console.log("Connected to rosbridge websocket server.");
   subscribePointCloudTopic(pointCloudTopicName);
+  predListener.subscribe(handlePredsMessage);
+  console.log("[PREDS] subscribed to /preds");
 });
 
 rosBridgeClient.on("error", function (error) {
@@ -235,6 +246,44 @@ const topicApiServer = http.createServer((req, res) => {
       }
     });
 
+    return;
+  }
+
+const enableDetectionPub = new ROSLIB.Topic({
+  ros: rosBridgeClient,
+  name: '/enable_detection',
+  messageType: 'std_msgs/msg/Bool'
+});
+
+  if (req.method === "POST" && req.url === "/toggle_predictions") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      try {
+        const data = JSON.parse(body);
+        enablePredictions = !!data.enable;
+        
+        // Tell detect.py to wake up or go to sleep
+        enableDetectionPub.publish(new ROSLIB.Message({ data: enablePredictions }));
+        
+        if (!enablePredictions) {
+          xvizServer.updateObstacles([{
+            id: 9999,
+            object_class: 0,
+            object_build: '0',
+            vertices: { x: 0, y: 0, z: -10000 },
+            scale: { x: 0.01, y: 0.01, z: 0.01 },
+            orientation: { car_roll: 0, car_pitch: 0, car_yaw: 0, roll: 0, pitch: 0, yaw: 0, yaw_: 0 },
+            velocity: { dir_arrow: [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }], abs_velocity: 0 }
+          }]);
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, enablePredictions }));
+      } catch (err) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
     return;
   }
 
@@ -333,11 +382,115 @@ odomListener.subscribe(function (message) {
   );
 });
 
-listener7.subscribe(function (message) {
-  const data_ = toUint8Array(message.data);
-  const data = Buffer.from(data_);
-  ImageConverter.createSharpImg(data, message.width, message.height);
-});
+// listener7.subscribe(function (message) {
+//   console.log(`[CAMERA] Received image: ${message.width}x${message.height}, encoding: ${message.encoding}, data length: ${message.data.length}`);
+//   const data_ = toUint8Array(message.data);
+//   const data = Buffer.from(data_);
+//   ImageConverter.createSharpImg(data, message.width, message.height, message.encoding).catch(err => {
+//     console.error("[CAMERA] sharp error:", err);
+//   });
+// });
+
+function mapClassId(classIdStr) {
+  const classId = parseInt(classIdStr);
+  switch (classId) {
+    case 0: return 6; // Pedestrian -> PEDESTRIAN
+    case 1: return 4; // Bicycle -> BICYCLE
+    case 2: return 5; // Motorcycle -> MOTORBIKE
+    case 3: return 5; // Scooter -> MOTORBIKE
+    default: return 0; // UNKNOWN
+  }
+}
+
+let enablePredictions = true;
+let lastPredTime = 0;
+
+setInterval(() => {
+  if (enablePredictions && Date.now() - lastPredTime > 1000) {
+    xvizServer.updateObstacles([{
+      id: 9999,
+      object_class: 0,
+      object_build: '0',
+      vertices: { x: 0, y: 0, z: -10000 },
+      scale: { x: 0.01, y: 0.01, z: 0.01 },
+      orientation: { car_roll: 0, car_pitch: 0, car_yaw: 0, roll: 0, pitch: 0, yaw: 0, yaw_: 0 },
+      velocity: { dir_arrow: [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }], abs_velocity: 0 }
+    }]);
+  }
+}, 500);
+
+function handlePredsMessage(message) {
+  lastPredTime = Date.now();
+  if (!enablePredictions || !message.detections) {
+    return;
+  }
+
+  const obstacles = message.detections.map((detection, idx) => {
+    let posX = detection.bbox.center.position.x;
+    let posY = detection.bbox.center.position.y;
+    let posZ = detection.bbox.center.position.z;
+
+    let rpy = [0, 0, 0];
+    if (detection.bbox.center.orientation) {
+      rpy = Calculator.QuaternionToRoll_Pitch_Yaw(detection.bbox.center.orientation);
+    }
+    let objYaw = rpy[2];
+
+    if (usingSimulationPose()) {
+      // Rotate position by PI/2 around Z-axis: (x', y') = (-y, x)
+      const tempX = posX;
+      posX = -posY;
+      posY = tempX;
+      objYaw += Math.PI / 2.0;
+    }
+
+    const xviz_class = mapClassId(detection.results[0]?.hypothesis?.class_id || '0');
+    const object_build = xviz_class === 6 ? '1' : '0'; // '1' Cylinder for pedestrian, '0' CubeBox for others
+
+    return {
+      id: idx + 1,
+      object_class: xviz_class,
+      object_build: object_build,
+      vertices: {
+        x: posX,
+        y: posY,
+        z: posZ
+      },
+      scale: {
+        x: detection.bbox.size.x,
+        y: detection.bbox.size.y,
+        z: detection.bbox.size.z
+      },
+      orientation: {
+        car_roll: 0,
+        car_pitch: 0,
+        car_yaw: 0,
+        roll: rpy[0],
+        pitch: rpy[1],
+        yaw: objYaw,
+        yaw_: objYaw
+      },
+      velocity: {
+        dir_arrow: [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }],
+        abs_velocity: 0
+      }
+    };
+  });
+
+  if (obstacles.length === 0) {
+    xvizServer.updateObstacles([{
+      id: 9999,
+      object_class: 0,
+      object_build: '0',
+      vertices: { x: 0, y: 0, z: -10000 },
+      scale: { x: 0.01, y: 0.01, z: 0.01 },
+      orientation: { car_roll: 0, car_pitch: 0, car_yaw: 0, roll: 0, pitch: 0, yaw: 0, yaw_: 0 },
+      velocity: { dir_arrow: [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }], abs_velocity: 0 }
+    }]);
+  } else {
+    xvizServer.updateObstacles(obstacles);
+  }
+}
 
 function gracefulShutdown() {
   console.log("shutting down rosbridge-xviz-connector");
@@ -352,6 +505,7 @@ function gracefulShutdown() {
 
   listener7.unsubscribe();
   listener8.unsubscribe();
+  predListener.unsubscribe();
 
   rosBridgeClient.close();
   xvizServer.close();

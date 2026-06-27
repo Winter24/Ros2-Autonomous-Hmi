@@ -52,11 +52,24 @@ export default class ControlPanel extends React.PureComponent {
     this.state = {
       pointCloudTopic: "/kitti/point_cloud",
       pointCloudStatus: "default",
-      showSettings: false
+      showSettings: false,
+      enablePredictions: true
     };
 
     this.onPointCloudTopicChange = this.onPointCloudTopicChange.bind(this);
     this.toggleSettings = this.toggleSettings.bind(this);
+    this.togglePredictions = this.togglePredictions.bind(this);
+  }
+
+  togglePredictions() {
+    const nextState = !this.state.enablePredictions;
+    this.setState({ enablePredictions: nextState });
+
+    fetch("http://localhost:8082/toggle_predictions", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ enable: nextState })
+    }).catch(err => console.error("Error toggling predictions:", err));
   }
 
   toggleSettings() {
@@ -138,6 +151,19 @@ export default class ControlPanel extends React.PureComponent {
           values={settings}
           onChange={onSettingsChange}
         />
+
+        <hr />
+
+        <div style={sectionTitleStyle}>Predictions</div>
+        <label style={{ display: "flex", alignItems: "center", cursor: "pointer", marginBottom: "10px" }}>
+          <input 
+            type="checkbox" 
+            checked={this.state.enablePredictions}
+            onChange={this.togglePredictions}
+            style={{ marginRight: "8px", width: "16px", height: "16px" }}
+          />
+          Show 3D Bounding Boxes
+        </label>
 
         <hr />
 

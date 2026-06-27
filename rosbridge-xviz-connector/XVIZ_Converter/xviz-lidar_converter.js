@@ -113,7 +113,12 @@ module.exports = {
           points_binary.push(zLE);
       
           //intensity는 구현해야야 함
-          const reflectance = buf.readFloatLE(i * pointSize + 16);
+          let reflectance = 0.0;
+          if (pointSize === 16 && i * pointSize + 12 <= buf.length - 4) {
+              reflectance = buf.readFloatLE(i * pointSize + 12);
+          } else if (i * pointSize + 16 <= buf.length - 4) {
+              reflectance = buf.readFloatLE(i * pointSize + 16);
+          }
           intensity_binary.push(reflectance);
           //colors[i * 3 + 0] = 80 + reflectance * 80;
           //colors[i * 3 + 1] = 80 + reflectance * 80;

@@ -36,7 +36,7 @@ export default class CameraWindow extends React.PureComponent {
   getCameraTopicByPointCloudTopic(pointCloudTopic) {
     if (pointCloudTopic === "/points_raw") {
       return {
-        name: "/camera/image_raw",
+        name: "/camera/camera/image_raw",
         type: "sensor_msgs/msg/Image"
       };
     }
@@ -135,7 +135,7 @@ export default class CameraWindow extends React.PureComponent {
         out[i * 4 + 3] = 255;
       }
     } else if (isRGB || isBGR) {
-      const step = hasAlpha ? 4 : 3;
+      const step = Math.round(raw.length / (width * height));
 
       for (let i = 0; i < width * height; i++) {
         const src = i * step;
