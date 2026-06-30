@@ -52,13 +52,18 @@ export default class HUD extends React.PureComponent {
   render() {
     const { log } = this.props;
 
+    const width = 620;
+    const height = 220;
+    const initialX = typeof window !== 'undefined' ? (window.innerWidth - width) / 2 : 560;
+    const initialY = typeof window !== 'undefined' ? window.innerHeight - height - 24 : 735;
+
     return (
       <FloatingWindow
         title="Vehicle Status"
-        x={560}
-        y={735}
-        width={620}
-        height={220}
+        x={initialX}
+        y={initialY}
+        width={width}
+        height={height}
         minWidth={500}
         minHeight={180}
         collapseSide="bottom"

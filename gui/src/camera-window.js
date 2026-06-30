@@ -42,8 +42,8 @@ export default class CameraWindow extends React.PureComponent {
     }
 
     return {
-      name: "/kitti/image/color/left",
-      type: "sensor_msgs/msg/Image"
+      name: "/kitti/image/color/left/compressed",
+      type: "sensor_msgs/msg/CompressedImage"
     };
   }
 
@@ -102,6 +102,23 @@ export default class CameraWindow extends React.PureComponent {
   drawRawImage(msg) {
     const canvas = this.canvasRef.current;
     if (!canvas) return;
+
+    if (msg.format && (msg.format.includes("jpeg") || msg.format.includes("jpg") || msg.format.includes("png"))) {
+      const dataUrl = `data:image/jpeg;base64,` + msg.data;
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        this.setState({ errorText: null });
+      };
+      img.onerror = () => {
+        this.setState({ errorText: "Failed to load compressed image" });
+      };
+      img.src = dataUrl;
+      return;
+    }
 
     const width = msg.width;
     const height = msg.height;

@@ -132,16 +132,21 @@ function subscribePointCloudTopic(topicName) {
 
   pointCloudTopicName = topicName;
 
+  let actualTopic = topicName;
+  if (topicName === "/kitti/point_cloud") {
+    actualTopic = "/kitti/point_cloud/vis";
+  }
+
   pointCloudListener = new ROSLIB.Topic({
     ros: rosBridgeClient,
-    name: pointCloudTopicName,
+    name: actualTopic,
     messageType: "sensor_msgs/msg/PointCloud2",
     throttle_rate: 150
   });
 
   pointCloudListener.subscribe(handlePointCloudMessage);
 
-  console.log("[POINTCLOUD] subscribed:", pointCloudTopicName);
+  console.log("[POINTCLOUD] subscribed:", actualTopic);
 }
 
 const listener = new ROSLIB.Topic({
@@ -447,11 +452,16 @@ function handlePredsMessage(message) {
       objYaw += Math.PI / 2.0;
     }
 
-    const xviz_class = mapClassId(detection.results[0]?.hypothesis?.class_id || '0');
+    const classIdRaw = detection.results[0]?.hypothesis?.class_id || '0';
+    const parts = classIdRaw.split('_');
+    const actualClassId = parts[0];
+    const trackingId = parts.length > 1 ? parseInt(parts[1]) : idx;
+
+    const xviz_class = mapClassId(actualClassId);
     const object_build = xviz_class === 6 ? '1' : '0'; // '1' Cylinder for pedestrian, '0' CubeBox for others
 
     return {
-      id: idx,
+      id: trackingId,
       object_class: xviz_class,
       object_build: object_build,
       vertices: {

@@ -76,7 +76,7 @@ function velocitylimit(velocity_x,velocity_y,scale,velocity) {
 
 function build_CubeBox(marker, xvizBuilder, i) {
     var object_label = class_name(marker.object_class)
-    var object_id = [VECHILE_STREAM,object_label, i].join('/');
+    var object_id = [VECHILE_STREAM,object_label, marker.id].join('/');
     var object_height = marker.scale.z;
     const BoundingBox = TranformVertices(marker)
 
